@@ -41,7 +41,7 @@ console.log('Tabla de tokens:');
 tokens.fill();
 tokens.tokens.forEach(token => {
     if (token.type !== -1) { // Ignora EOF
-        const tokenName = AnalizadorParser.symbolicNames[token.type];
+        const tokenName = AnalizadorParser.symbolicNames[token.type] || AnalizadorParser.literalNames[token.type];
         console.log(`Token: ${tokenName}, Lexema: '${token.text}', Línea: ${token.line}`);
     }
 });
@@ -63,19 +63,38 @@ function asArray(x) {
 
 function interpretar(node) {
     if (!node) return '';
-    if (/programa/i.test(node.constructor.name)) {
-        if (typeof node.instruccion === 'function') {
-            return asArray(node.instruccion()).map(interpretar).join('\n');
+    
+    // Obtener el nombre de la clase del nodo
+    const nodeType = node.constructor.name;
+    console.log(`Procesando nodo de tipo: ${nodeType}`);
+    
+    if (nodeType === 'ProgramaContext') {
+        const instrucciones = node.instruccion();
+        console.log(`Número de instrucciones: ${instrucciones.length}`);
+        return instrucciones.map(inst => interpretar(inst)).join('\n');
+    }
+    if (nodeType === 'InstruccionContext') {
+        // Verificar qué tipo de instrucción es
+        if (node.variar()) {
+            return interpretar(node.variar());
+        }
+        if (node.asignacion()) {
+            return interpretar(node.asignacion());
+        }
+        if (node.salida()) {
+            return interpretar(node.salida());
         }
     }
-    if (/salida/i.test(node.constructor.name)) {
+    if (nodeType === 'SalidaContext') {
         const expr = interpretar(node.expresion());
         return `console.log(${expr});`;
     }
-    if (/asignacion/i.test(node.constructor.name)) {
-        return `${node.variable().getText()} = ${interpretar(node.expresion())};`;
+    if (nodeType === 'AsignacionContext') {
+        const varName = node.variable().getText();
+        const expr = interpretar(node.expresion());
+        return `${varName} = ${expr};`;
     }
-    if (/variar/i.test(node.constructor.name)) {
+    if (nodeType === 'VariarContext') {
         const varName = node.variable().getText();
         const desde = interpretar(node.expresion(0));
         const hasta = interpretar(node.expresion(1));
@@ -83,27 +102,46 @@ function interpretar(node) {
         const bloque = interpretar(node.bloque());
         return `for(let ${varName} = ${desde}; ${varName} <= ${hasta}; ${varName} += ${paso}) {\n${bloque}\n}`;
     }
-    if (/bloque/i.test(node.constructor.name)) {
-        if (typeof node.instruccion === 'function') {
-            return asArray(node.instruccion()).map(interpretar).join('\n');
-        }
+    if (nodeType === 'BloqueContext') {
+        const instrucciones = node.instruccion();
+        console.log(`Número de instrucciones en bloque: ${instrucciones.length}`);
+        return instrucciones.map(inst => interpretar(inst)).join('\n');
     }
-    if (/expresion/i.test(node.constructor.name)) {
-        if (node.termino && node.termino().length === 1) {
-            return interpretar(node.termino(0));
-        } else if (node.termino && node.termino().length > 1) {
-            let expr = interpretar(node.termino(0));
-            for (let i = 1; i < node.termino().length; i++) {
-                expr += ` ${node.children[2 * i - 1].getText()} ${interpretar(node.termino(i))}`;
+    if (nodeType === 'ExpresionContext') {
+        const terminos = node.termino();
+        console.log(`Número de términos: ${terminos.length}`);
+        if (terminos.length === 1) {
+            return interpretar(terminos[0]);
+        } else {
+            let expr = interpretar(terminos[0]);
+            for (let i = 1; i < terminos.length; i++) {
+                const op = node.children[2 * i - 1].getText();
+                expr += ` ${op} ${interpretar(terminos[i])}`;
             }
             return expr;
         }
     }
-    if (/termino/i.test(node.constructor.name)) {
-        if (node.NUMERO && node.NUMERO()) return node.NUMERO().getText();
-        if (node.variable && node.variable()) return node.variable().getText();
-        if (node.expresion && node.expresion()) return `(${interpretar(node.expresion())})`;
+    if (nodeType === 'TerminoContext') {
+        if (node.NUMERO()) {
+            console.log(`Término numérico: ${node.NUMERO().getText()}`);
+            return node.NUMERO().getText();
+        }
+        if (node.variable()) {
+            console.log(`Término variable: ${node.variable().getText()}`);
+            return node.variable().getText();
+        }
+        if (node.expresion()) {
+            console.log('Término expresión');
+            return `(${interpretar(node.expresion())})`;
+        }
     }
+    if (nodeType === 'VariableContext') {
+        const varName = node.IDENTIFICADOR().getText();
+        console.log(`Variable: ${varName}`);
+        return varName;
+    }
+    
+    console.log(`Tipo de nodo no manejado: ${nodeType}`);
     return '';
 }
 
