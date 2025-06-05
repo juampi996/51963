@@ -1,4 +1,4 @@
-# Analizador Sintáctico - [Tu Legajo]
+# Analizador Sintáctico - [51963]
 
 Este proyecto es un analizador léxico y sintáctico construido con ANTLR4 y Node.js, que traduce un lenguaje específico a JavaScript.
 
